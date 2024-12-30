@@ -39,7 +39,7 @@ def get_target_object(session: Session, target_type: TargetType, target_id: str)
     
     return target
 
-@router.post("/{target_type}/{target_id}", response_model=ReactionResponse, status_code=status.HTTP_200_OK)
+@router.post("/{target_type}/{target_id}", response_model=ReactionResponse, status_code=status.HTTP_200_OK, summary="Create a reaction on a target object: post, comment, or reply")
 def create_reaction(
     target_type: TargetType,
     target_id: str,

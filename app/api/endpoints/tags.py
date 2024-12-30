@@ -12,7 +12,7 @@ from datetime import datetime, UTC
 
 router = APIRouter()
 
-@router.post("/", response_model=TagResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=TagResponse, status_code=status.HTTP_201_CREATED, summary="Create a new tag")
 def create_tag(
     tag: TagCreate,
     current_user: User = Depends(get_current_user),
@@ -39,14 +39,14 @@ def create_tag(
     session.refresh(db_tag)
     return db_tag
 
-@router.get("/", response_model=List[TagResponse])
+@router.get("/", response_model=List[TagResponse], summary="List all tags")
 def list_tags(
     session: Session = Depends(get_session)
 ):
     """List all tags"""
     return session.query(Tag).filter(Tag.status == TagStatus.ACTIVE).all()
 
-@router.get("/{tag_id}", response_model=TagResponse)
+@router.get("/{tag_id}", response_model=TagResponse, summary="Get a specific tag")
 def get_tag(
     tag_id: str,
     session: Session = Depends(get_session)
@@ -65,7 +65,7 @@ def get_tag(
         )
     return tag
 
-@router.put("/{tag_id}", response_model=TagResponse)
+@router.put("/{tag_id}", response_model=TagResponse, summary="Update a tag")
 def update_tag(
     tag_id: str,
     tag_update: TagUpdate,
@@ -107,7 +107,7 @@ def update_tag(
     session.refresh(tag)
     return tag
 
-@router.delete("/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{tag_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a tag")
 def delete_tag(
     tag_id: str,
     current_user: User = Depends(get_current_user),
@@ -137,7 +137,7 @@ def delete_tag(
     session.commit()
     return {"message": "Tag deleted"}
 
-@router.post("/{tag_id}/archive", response_model=TagResponse)
+@router.post("/{tag_id}:archiveTag", response_model=TagResponse, summary="Archive a tag")
 def archive_tag(
     tag_id: str,
     current_user: User = Depends(get_current_user),

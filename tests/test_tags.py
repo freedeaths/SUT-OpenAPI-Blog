@@ -139,3 +139,27 @@ class TestTagDeletion:
         post_response = authenticated_client.get(f"/api/posts/{post_id}")
         assert post_response.status_code == 200
         assert not post_response.json()["tag_ids"]
+
+class TestTagArchiving:
+    def test_archive_tag(self, authenticated_client, test_tag_data):
+        # 创建标签
+        create_response = authenticated_client.post("/api/tags", json=test_tag_data)
+        assert create_response.status_code == 201
+        tag_id = create_response.json()["id"]
+
+        # 创建文章并添加标签
+        post_data = {
+            "title": "Test Post",
+            "content": "Test content",
+            "tag_ids": [tag_id]
+        }
+        post_response = authenticated_client.post("/api/posts", json=post_data)
+        assert post_response.status_code == 201
+        post_id = post_response.json()["id"]
+
+        # 将标签归档
+        response = authenticated_client.post(f"/api/tags/{tag_id}:archiveTag")
+        assert response.status_code == 200
+
+        # 验证标签已被归档
+        get_response = authenticated_client.get(f"/api/tags/{tag_id}")

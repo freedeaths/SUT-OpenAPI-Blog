@@ -11,7 +11,7 @@ from typing import List
 
 router = APIRouter()
 
-@router.post("", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=CommentResponse, status_code=status.HTTP_201_CREATED, summary="Create a comment on a post")
 def create_comment(
     post_id: str,
     comment: CommentCreate,
@@ -48,7 +48,7 @@ def create_comment(
     session.refresh(db_comment)
     return db_comment
 
-@router.get("", response_model=List[CommentResponse])
+@router.get("", response_model=List[CommentResponse], summary="List all comments on a post")
 def list_comments(
     post_id: str,
     session: Session = Depends(get_session)
@@ -74,7 +74,7 @@ def list_comments(
             Comment.status == CommentStatus.ACTIVE
     ).all()
 
-@router.get("/{comment_id}", response_model=CommentResponse)
+@router.get("/{comment_id}", response_model=CommentResponse, summary="Get a specific comment on a post")
 def get_comment(
     post_id: str,
     comment_id: str,
@@ -116,7 +116,7 @@ def get_comment(
     
     return comment
 
-@router.put("/{comment_id}", response_model=CommentResponse)
+@router.put("/{comment_id}", response_model=CommentResponse, summary="Update a comment on a post")
 def update_comment(
     post_id: str,
     comment_id: str,
@@ -169,7 +169,7 @@ def update_comment(
     session.refresh(comment)
     return comment
 
-@router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a comment on a post")
 def delete_comment(
     post_id: str,
     comment_id: str,
@@ -224,7 +224,7 @@ def delete_comment(
     post.comments_count -= 1
     session.commit()
 
-@router.post("/{comment_id}:activateComment", response_model=CommentResponse)
+@router.post("/{comment_id}:activateComment", response_model=CommentResponse, summary="Activate a comment on a post")
 def activate_comment(
     post_id: str,
     comment_id: str,
@@ -266,7 +266,7 @@ def activate_comment(
     session.refresh(comment)
     return comment
 
-@router.post("/{comment_id}:archiveComment", response_model=CommentResponse)
+@router.post("/{comment_id}:archiveComment", response_model=CommentResponse, summary="Archive a comment on a post")
 def archive_comment(
     post_id: str,
     comment_id: str,

@@ -17,7 +17,7 @@ from datetime import timezone
 
 router = APIRouter()
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="Create a new user")
 def create_user(
     user_in: UserCreate,
     session: Annotated[Session, Depends(get_session)]
@@ -55,7 +55,7 @@ def create_user(
     session.refresh(user)
     return user
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token, summary="Login a user")
 def login(
     user_in: UserLogin,
     session: Annotated[Session, Depends(get_session)]
@@ -85,14 +85,14 @@ def login(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=UserResponse, summary="Get the current user")
 def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ) -> User:
     """Get the current user"""
     return current_user
 
-@router.put("/me", response_model=UserResponse)
+@router.put("/me", response_model=UserResponse, summary="Update the current user")
 def update_user_me(
     user_update: UserUpdate,
     current_user: Annotated[User, Depends(get_current_active_user)],

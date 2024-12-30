@@ -14,7 +14,7 @@ from typing import List, Optional
 
 router = APIRouter()
 
-@router.post("", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=PostResponse, status_code=status.HTTP_201_CREATED, summary="Create a new post")
 def create_post(
     post: PostCreate,
     current_user: User = Depends(get_current_user),
@@ -70,7 +70,7 @@ def create_post(
         "tag_ids": post.tag_ids or []
     }
 
-@router.get("", response_model=List[PostResponse])
+@router.get("", response_model=List[PostResponse], summary="List all posts")
 def list_posts(
     status: PostStatus = None,
     author_id: str = None,
@@ -161,7 +161,7 @@ def list_posts(
         "tag_ids": post_tags.get(post.id, [])
     } for post in posts]
 
-@router.get("/{post_id}", response_model=PostResponse)
+@router.get("/{post_id}", response_model=PostResponse, summary="Get a specific post")
 def get_post(
     post_id: str,
     session: Session = Depends(get_session),
@@ -240,7 +240,7 @@ def get_post(
         "tag_ids": [tag.id for tag in tags]
     }
 
-@router.put("/{post_id}", response_model=PostResponse)
+@router.put("/{post_id}", response_model=PostResponse, summary="Update a post, including title, content and tags of a post")
 def update_post(
     post_id: str,
     post_update: PostUpdate,
@@ -369,7 +369,7 @@ def update_post(
         "tag_ids": [tag.id for tag in tags]
     }
 
-@router.post("/{post_id}:activatePost", response_model=PostResponse)
+@router.post("/{post_id}:activatePost", response_model=PostResponse, summary="Activate a post")
 def activate_post(
     post_id: str,
     session: Session = Depends(get_session),
@@ -404,7 +404,7 @@ def activate_post(
     session.refresh(post)
     return post
 
-@router.post("/{post_id}:modifyPost", response_model=PostResponse)
+@router.post("/{post_id}:modifyPost", response_model=PostResponse, summary="Put a post in modifying status")
 def modify_post(
     post_id: str,
     session: Session = Depends(get_session),
@@ -439,7 +439,7 @@ def modify_post(
     session.refresh(post)
     return post
 
-@router.post("/{post_id}:archivePost", response_model=PostResponse)
+@router.post("/{post_id}:archivePost", response_model=PostResponse, summary="Archive a post")
 def archive_post(
     post_id: str,
     session: Session = Depends(get_session),
@@ -467,7 +467,7 @@ def archive_post(
     session.refresh(post)
     return post
 
-@router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a post and all its comments and replies")
 def delete_post(
     post_id: str,
     session: Session = Depends(get_session),

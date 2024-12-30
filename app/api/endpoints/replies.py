@@ -12,7 +12,7 @@ from typing import List
 
 router = APIRouter()
 
-@router.post("", response_model=ReplyResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ReplyResponse, status_code=status.HTTP_201_CREATED, summary="Create a reply to a comment")
 def create_reply(
     post_id: str,
     comment_id: str,
@@ -64,7 +64,7 @@ def create_reply(
     session.refresh(db_reply)
     return db_reply
 
-@router.get("", response_model=List[ReplyResponse])
+@router.get("", response_model=List[ReplyResponse], summary="List all replies to a comment")
 def list_replies(
     post_id: str,
     comment_id: str,
@@ -107,7 +107,7 @@ def list_replies(
         Reply.status == ReplyStatus.ACTIVE
     ).all()
 
-@router.get("/{reply_id}", response_model=ReplyResponse)
+@router.get("/{reply_id}", response_model=ReplyResponse, summary="Get a specific reply to a comment")
 def get_reply(
     post_id: str,
     comment_id: str,
@@ -166,7 +166,7 @@ def get_reply(
     
     return reply
 
-@router.put("/{reply_id}", response_model=ReplyResponse)
+@router.put("/{reply_id}", response_model=ReplyResponse, summary="Update a reply to a comment")
 def update_reply(
     post_id: str,
     comment_id: str,
@@ -235,7 +235,7 @@ def update_reply(
     session.refresh(reply)
     return reply
 
-@router.delete("/{reply_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{reply_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a reply")
 def delete_reply(
     post_id: str,
     comment_id: str,
@@ -300,7 +300,7 @@ def delete_reply(
     reply.status = ReplyStatus.ARCHIVED
     session.commit()
 
-@router.post("/{reply_id}:activateReply", response_model=ReplyResponse)
+@router.post("/{reply_id}:activateReply", response_model=ReplyResponse, summary="Activate a reply")
 def activate_reply(
     post_id: str,
     comment_id: str,
@@ -357,7 +357,7 @@ def activate_reply(
     session.refresh(reply)
     return reply
 
-@router.post("/{reply_id}:archiveReply", response_model=ReplyResponse)
+@router.post("/{reply_id}:archiveReply", response_model=ReplyResponse, summary="Archive a reply")
 def archive_reply(
     post_id: str,
     comment_id: str,
