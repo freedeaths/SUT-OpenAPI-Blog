@@ -31,6 +31,13 @@ def test_reply_data():
     }
 
 @pytest.fixture
+def test_tag_data():
+    return {
+        "name": "test-tag",
+        "description": "Test tag"
+    }
+
+@pytest.fixture
 def authenticated_client(client, test_user_data):
     """返回一个已认证的客户端"""
     # 注册用户
@@ -65,6 +72,28 @@ class TestPostCreation:
         """测试未认证用户创建文章"""
         response = client.post("/api/posts", json=test_post_data)
         assert response.status_code == 401
+
+    def test_create_post_with_tags(self, authenticated_client, test_tag_data):
+        """测试创建带标签的文章"""
+        # 创建标签
+        response = authenticated_client.post("/api/tags", json=test_tag_data)
+        assert response.status_code == 201
+        tag_id = response.json()["id"]
+
+        # 创建带标签的文章
+        post_data = {
+            "title": "Test Post",
+            "content": "Test content",
+            "tag_ids": [tag_id]
+        }
+        response = authenticated_client.post("/api/posts", json=post_data)
+        assert response.status_code == 201
+        post_id = response.json()["id"]
+
+        # 验证文章已创建并包含标签
+        response = authenticated_client.get(f"/api/posts/{post_id}")
+        assert response.status_code == 200
+        assert response.json()["tag_ids"] == [tag_id]
 
 class TestPostRetrieval:
     def test_get_own_draft_post(self, authenticated_client, test_post_data):
@@ -242,27 +271,27 @@ class TestPostUpdate:
 
     def test_update_post_in_active_status(self, authenticated_client, test_post_data):
         """测试在活跃状态更新文章（应该失败）"""
-        # 创建并激活文章
+        # 创建文章
         response = authenticated_client.post("/api/posts", json=test_post_data)
         post_id = response.json()["id"]
+        
+        # 激活文章
         authenticated_client.post(f"/api/posts/{post_id}:activatePost")
         
-        # 尝试更新文章
+        # 尝试更新文章（应该失败，因为不是 MODIFYING 或 DRAFT 状态）
         new_data = {
             "title": "Updated Title",
             "content": "Updated content"
         }
         response = authenticated_client.put(f"/api/posts/{post_id}", json=new_data)
         assert response.status_code == 400
-        assert "can only update post in modifying status" in response.json()["detail"].lower()
+        assert "Can only update post in MODIFYING or DRAFT status" in response.json()["detail"]
 
     def test_update_others_post(self, client, authenticated_client, test_post_data):
         """测试更新他人的文章（应该失败）"""
-        # 创建文章并改为修改中状态
+        # 创建文章
         response = authenticated_client.post("/api/posts", json=test_post_data)
         post_id = response.json()["id"]
-        authenticated_client.post(f"/api/posts/{post_id}:activatePost")
-        authenticated_client.post(f"/api/posts/{post_id}:modifyPost")
         
         # 注册另一个用户
         other_user = {
@@ -290,6 +319,32 @@ class TestPostUpdate:
         }
         response = other_client.put(f"/api/posts/{post_id}", json=new_data)
         assert response.status_code == 403
+
+    def test_update_post_tags(self, authenticated_client, test_tag_data):
+        """测试更新文章标签"""
+        # 创建标签
+        response = authenticated_client.post("/api/tags", json=test_tag_data)
+        assert response.status_code == 201
+        tag_id = response.json()["id"]
+
+        # 创建文章
+        post_data = {
+            "title": "Test Post",
+            "content": "Test content"
+        }
+        response = authenticated_client.post("/api/posts", json=post_data)
+        assert response.status_code == 201
+        post_id = response.json()["id"]
+
+        # 添加标签
+        response = authenticated_client.put(f"/api/posts/{post_id}", json={"tag_ids": [tag_id]})
+        assert response.status_code == 200
+        assert response.json()["tag_ids"] == [tag_id]
+
+        # 移除标签
+        response = authenticated_client.put(f"/api/posts/{post_id}", json={"tag_ids": []})
+        assert response.status_code == 200
+        assert response.json()["tag_ids"] == []
 
 class TestPostDeletion:
     def test_delete_own_post(self, authenticated_client, test_post_data):
@@ -373,3 +428,23 @@ class TestPostDeletion:
         
         reply_get = authenticated_client.get(f"/api/posts/{post_id}/comments/{comment_id}/replies/{reply_id}")
         assert reply_get.status_code == 404
+
+    def test_delete_post_with_tags(self, authenticated_client, test_post_data):
+        """测试删除带标签的文章"""
+        # 创建标签
+        tag_data = {"name": "test-tag", "description": "Test tag"}
+        tag_response = authenticated_client.post("/api/tags", json=tag_data)
+        tag_id = tag_response.json()["id"]
+
+        # 创建带标签的文章
+        post_data = {**test_post_data, "tag_ids": [tag_id]}
+        post_response = authenticated_client.post("/api/posts", json=post_data)
+        post_id = post_response.json()["id"]
+
+        # 删除文章
+        response = authenticated_client.delete(f"/api/posts/{post_id}")
+        assert response.status_code == 204
+
+        # 验证标签仍然存在
+        tag_response = authenticated_client.get(f"/api/tags/{tag_id}")
+        assert tag_response.status_code == 200

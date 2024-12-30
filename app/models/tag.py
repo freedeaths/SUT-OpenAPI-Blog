@@ -15,18 +15,19 @@ class Tag(Base):
     __tablename__ = "tags"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    name: Mapped[str] = mapped_column(String(50), unique=True)  # tag name must be unique
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)  # tag name must be unique
     description: Mapped[str] = mapped_column(Text, nullable=True)  # tag description, optional
-    creator_id: Mapped[str] = mapped_column(String(36))  # not using foreign key, only store creator ID
+    creator_id: Mapped[str] = mapped_column(String(36), nullable=False)  # not using foreign key, only store creator ID
     status: Mapped[TagStatus] = mapped_column(
         Enum(TagStatus),
         default=TagStatus.ACTIVE,
         nullable=False
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC)
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False
     )
-    usage_count: Mapped[int] = mapped_column(Integer, default=0)  # tag usage count
+    usage_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # tag usage count

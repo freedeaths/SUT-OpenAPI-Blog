@@ -114,89 +114,28 @@ class TestTagDeletion:
         """测试删除未使用的标签"""
         # 创建标签
         create_response = authenticated_client.post("/api/tags", json=test_tag_data)
+        assert create_response.status_code == 201
         tag_id = create_response.json()["id"]
-        
+
+        # 创建文章并添加标签
+        post_data = {
+            "title": "Test Post",
+            "content": "Test content",
+            "tag_ids": [tag_id]
+        }
+        post_response = authenticated_client.post("/api/posts", json=post_data)
+        assert post_response.status_code == 201
+        post_id = post_response.json()["id"]
+
         # 删除标签
         response = authenticated_client.delete(f"/api/tags/{tag_id}")
         assert response.status_code == 204
 
-class TestPostTagOperations:
-    def test_add_tag_to_post(self, authenticated_client, test_tag_data):
-        """测试给文章添加标签"""
-        # 创建标签
-        tag_response = authenticated_client.post("/api/tags", json=test_tag_data)
-        tag_id = tag_response.json()["id"]
-        
-        # 创建文章
-        post_data = {
-            "title": "Test Post",
-            "content": "Test content"
-        }
-        post_response = authenticated_client.post("/api/posts", json=post_data)
-        post_id = post_response.json()["id"]
-        
-        # 添加标签
-        response = authenticated_client.post(
-            f"/api/tags/posts/{post_id}/tags/{tag_id}"
-        )
-        assert response.status_code == 204
-        
-        # 验证标签计数更新
-        tag_info = authenticated_client.get(f"/api/tags/{tag_id}").json()
-        assert tag_info["usage_count"] == 1
+        # 验证标签已被删除
+        get_response = authenticated_client.get(f"/api/tags/{tag_id}")
+        assert get_response.status_code == 404
 
-    def test_remove_tag_from_post(self, authenticated_client, test_tag_data):
-        """测试从文章移除标签"""
-        # 创建标签
-        tag_response = authenticated_client.post("/api/tags", json=test_tag_data)
-        tag_id = tag_response.json()["id"]
-        
-        # 创建文章
-        post_data = {
-            "title": "Test Post",
-            "content": "Test content"
-        }
-        post_response = authenticated_client.post("/api/posts", json=post_data)
-        post_id = post_response.json()["id"]
-        
-        # 添加标签
-        authenticated_client.post(
-            f"/api/tags/posts/{post_id}/tags/{tag_id}"
-        )
-        
-        # 移除标签
-        response = authenticated_client.delete(
-            f"/api/tags/posts/{post_id}/tags/{tag_id}"
-        )
-        assert response.status_code == 204
-        
-        # 验证标签计数更新
-        tag_info = authenticated_client.get(f"/api/tags/{tag_id}").json()
-        assert tag_info["usage_count"] == 0
-
-    def test_list_post_tags(self, authenticated_client, test_tag_data):
-        """测试列出文章的标签"""
-        # 创建标签
-        tag_response = authenticated_client.post("/api/tags", json=test_tag_data)
-        tag_id = tag_response.json()["id"]
-        
-        # 创建文章
-        post_data = {
-            "title": "Test Post",
-            "content": "Test content"
-        }
-        post_response = authenticated_client.post("/api/posts", json=post_data)
-        post_id = post_response.json()["id"]
-        
-        # 添加标签
-        authenticated_client.post(
-            f"/api/tags/posts/{post_id}/tags/{tag_id}"
-        )
-        
-        # 获取文章的标签
-        response = authenticated_client.get(f"/api/tags/posts/{post_id}/tags")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["id"] == tag_id
-        assert data[0]["name"] == test_tag_data["name"]
+        # 验证文章的标签列表为空
+        post_response = authenticated_client.get(f"/api/posts/{post_id}")
+        assert post_response.status_code == 200
+        assert not post_response.json()["tag_ids"]

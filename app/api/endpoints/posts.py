@@ -3,6 +3,10 @@ from sqlalchemy.orm import Session
 from app.db.database import get_session
 from app.models.post import Post, PostStatus
 from app.models.user import User
+from app.models.tag import Tag, TagStatus
+from app.models.post_tag import PostTag
+from app.models.comment import Comment, CommentStatus
+from app.models.reaction import Reaction, ReactionType, TargetType
 from app.schemas.post import PostCreate, PostUpdate, PostResponse
 from app.core.security import get_current_user, get_optional_current_user
 from datetime import datetime, UTC
@@ -17,15 +21,54 @@ def create_post(
     session: Session = Depends(get_session)
 ):
     """Create a new post"""
-    db_post = Post(
-        author_id=current_user.id,
+    # Create post
+    new_post = Post(
         title=post.title,
-        content=post.content
+        content=post.content,
+        author_id=current_user.id,
+        status=PostStatus.DRAFT
     )
-    session.add(db_post)
+    session.add(new_post)
+    session.flush()  # Flush to get the post ID
+
+    # Add tags if provided
+    if post.tag_ids:
+        # Check if all tags exist and are active
+        tags = session.query(Tag).filter(
+            Tag.id.in_(post.tag_ids),
+            Tag.status == TagStatus.ACTIVE
+        ).all()
+        if len(tags) != len(post.tag_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Some tags not found or not active"
+            )
+        
+        # Add tags to post
+        for tag_id in post.tag_ids:
+            post_tag = PostTag(post_id=new_post.id, tag_id=tag_id)
+            session.add(post_tag)
+            # Update tag usage count
+            tag = next(tag for tag in tags if tag.id == tag_id)
+            tag.usage_count += 1
+
     session.commit()
-    session.refresh(db_post)
-    return db_post
+    
+    # Return post with tags
+    return {
+        "id": new_post.id,
+        "title": new_post.title,
+        "content": new_post.content,
+        "author_id": new_post.author_id,
+        "status": new_post.status,
+        "created_at": new_post.created_at,
+        "updated_at": new_post.updated_at,
+        "likes_count": new_post.likes_count,
+        "dislikes_count": 0,
+        "views_count": 0,
+        "comments_count": 0,
+        "tag_ids": post.tag_ids or []
+    }
 
 @router.get("", response_model=List[PostResponse])
 def list_posts(
@@ -60,7 +103,63 @@ def list_posts(
         if status:
             query = query.filter(Post.status == status)
     
-    return query.all()
+    posts = query.all()
+    
+    # Get post tags
+    post_tags = {}
+    for post in posts:
+        tags = session.query(Tag).join(
+            PostTag, PostTag.tag_id == Tag.id
+        ).filter(
+            PostTag.post_id == post.id,
+            Tag.status == TagStatus.ACTIVE
+        ).all()
+        post_tags[post.id] = [tag.id for tag in tags]
+    
+    # Get comments count
+    post_comments_count = {}
+    for post in posts:
+        comments_count = session.query(Comment).filter(
+            Comment.post_id == post.id,
+            Comment.status == CommentStatus.ACTIVE
+        ).count()
+        post_comments_count[post.id] = comments_count
+    
+    # Get dislikes count
+    post_dislikes_count = {}
+    for post in posts:
+        dislikes_count = session.query(Reaction).filter(
+            Reaction.target_id == post.id,
+            Reaction.target_type == TargetType.POST,
+            Reaction.type == ReactionType.DISLIKE
+        ).count()
+        post_dislikes_count[post.id] = dislikes_count
+    
+    # Get likes count
+    post_likes_count = {}
+    for post in posts:
+        likes_count = session.query(Reaction).filter(
+            Reaction.target_id == post.id,
+            Reaction.target_type == TargetType.POST,
+            Reaction.type == ReactionType.LIKE
+        ).count()
+        post_likes_count[post.id] = likes_count
+    
+    # Return posts with tags
+    return [{
+        "id": post.id,
+        "title": post.title,
+        "content": post.content,
+        "author_id": post.author_id,
+        "status": post.status,
+        "created_at": post.created_at,
+        "updated_at": post.updated_at,
+        "likes_count": post_likes_count.get(post.id, 0),
+        "dislikes_count": post_dislikes_count.get(post.id, 0),
+        "views_count": post.views_count,
+        "comments_count": post_comments_count.get(post.id, 0),
+        "tag_ids": post_tags.get(post.id, [])
+    } for post in posts]
 
 @router.get("/{post_id}", response_model=PostResponse)
 def get_post(
@@ -69,39 +168,77 @@ def get_post(
     current_user: User | None = Depends(get_optional_current_user)
 ):
     """Get a specific post"""
-    print(f"current_user: {current_user}")  # Debug information
-    
+    # Get post with tag information
     post = session.query(Post).filter(Post.id == post_id).first()
     if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Post not found"
         )
-    
-    print(f"post.status: {post.status}")  # Debug information
-    
-    # Check permissions:
-    # 1. Draft posts must be logged in and can only be accessed by the author
+
+    # Check if user has permission to view draft post
     if post.status == PostStatus.DRAFT:
-        print(f"checking draft post access")  # Debug information
         if not current_user:
-            print(f"raising 401")  # Debug information
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required to view draft posts"
+                detail="Not authenticated"
             )
-        if post.author_id != current_user.id:
+        if current_user.id != post.author_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to view this post"
+                detail="Not enough permissions"
             )
-    # 2. Other statuses can be accessed by anyone
     
-    # Increase view count
-    post.views_count += 1
+    # Get post tags
+    tags = session.query(Tag).join(
+        PostTag, PostTag.tag_id == Tag.id
+    ).filter(
+        PostTag.post_id == post_id,
+        Tag.status == TagStatus.ACTIVE
+    ).all()
+    
+    # Get comments count
+    comments_count = session.query(Comment).filter(
+        Comment.post_id == post_id,
+        Comment.status == CommentStatus.ACTIVE
+    ).count()
+    
+    # Get dislikes count
+    dislikes_count = session.query(Reaction).filter(
+        Reaction.target_id == post_id,
+        Reaction.target_type == TargetType.POST,
+        Reaction.type == ReactionType.DISLIKE
+    ).count()
+    
+    # Get likes count
+    likes_count = session.query(Reaction).filter(
+        Reaction.target_id == post_id,
+        Reaction.target_type == TargetType.POST,
+        Reaction.type == ReactionType.LIKE
+    ).count()
+    
+    # Update post counts
+    post.likes_count = likes_count
+    post.dislikes_count = dislikes_count
+    post.comments_count = comments_count
+
     session.commit()
-    
-    return post
+
+    # Return post with tags
+    return {
+        "id": post.id,
+        "title": post.title,
+        "content": post.content,
+        "author_id": post.author_id,
+        "status": post.status,
+        "created_at": post.created_at,
+        "updated_at": post.updated_at,
+        "likes_count": likes_count,
+        "dislikes_count": dislikes_count,
+        "views_count": post.views_count,
+        "comments_count": comments_count,
+        "tag_ids": [tag.id for tag in tags]
+    }
 
 @router.put("/{post_id}", response_model=PostResponse)
 def update_post(
@@ -111,6 +248,7 @@ def update_post(
     current_user: User = Depends(get_current_user)
 ):
     """Update a post"""
+    # Check if post exists
     post = session.query(Post).filter(Post.id == post_id).first()
     if not post:
         raise HTTPException(
@@ -118,28 +256,118 @@ def update_post(
             detail="Post not found"
         )
     
-    # Check permissions
+    # Check if user has permission
     if post.author_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to update this post"
+            detail="Not enough permissions"
         )
     
-    # Check status
-    if post.status != PostStatus.MODIFYING:
+    # Check post status
+    if post.status not in [PostStatus.MODIFYING, PostStatus.DRAFT]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only update post in MODIFYING status"
+            detail="Can only update post in MODIFYING or DRAFT status"
         )
     
-    # Update fields
-    for field, value in post_update.model_dump(exclude_unset=True).items():
-        setattr(post, field, value)
-    post.updated_at = datetime.now(UTC)
+    # Update post fields if provided
+    if post_update.title is not None:
+        post.title = post_update.title
+    if post_update.content is not None:
+        post.content = post_update.content
+    if post_update.status is not None:
+        post.status = post_update.status
     
+    # Update tags if provided
+    if post_update.tag_ids is not None:
+        # Check if all new tags exist and are active
+        new_tags = session.query(Tag).filter(
+            Tag.id.in_(post_update.tag_ids),
+            Tag.status == TagStatus.ACTIVE
+        ).all()
+        if len(new_tags) != len(post_update.tag_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Some tags not found or not active"
+            )
+
+        # Get current tags
+        current_tags = session.query(Tag).join(
+            PostTag, PostTag.tag_id == Tag.id
+        ).filter(
+            PostTag.post_id == post_id
+        ).all()
+
+        # Remove old tags
+        session.query(PostTag).filter(PostTag.post_id == post_id).delete()
+
+        # Update usage count for removed tags
+        for tag in current_tags:
+            if tag.id not in post_update.tag_ids and tag.usage_count > 0:
+                tag.usage_count -= 1
+
+        # Add new tags
+        for tag_id in post_update.tag_ids:
+            post_tag = PostTag(post_id=post_id, tag_id=tag_id)
+            session.add(post_tag)
+            # Update tag usage count
+            tag = next(tag for tag in new_tags if tag.id == tag_id)
+            if tag.id not in [t.id for t in current_tags]:
+                tag.usage_count += 1
+
+    post.updated_at = datetime.now(UTC)
     session.commit()
-    session.refresh(post)
-    return post
+    
+    # Get comments count
+    comments_count = session.query(Comment).filter(
+        Comment.post_id == post_id,
+        Comment.status == CommentStatus.ACTIVE
+    ).count()
+    
+    # Get dislikes count
+    dislikes_count = session.query(Reaction).filter(
+        Reaction.target_id == post_id,
+        Reaction.target_type == TargetType.POST,
+        Reaction.type == ReactionType.DISLIKE
+    ).count()
+    
+    # Get likes count
+    likes_count = session.query(Reaction).filter(
+        Reaction.target_id == post_id,
+        Reaction.target_type == TargetType.POST,
+        Reaction.type == ReactionType.LIKE
+    ).count()
+    
+    # Update post counts
+    post.likes_count = likes_count
+    post.dislikes_count = dislikes_count
+    post.comments_count = comments_count
+
+    session.commit()
+
+    # Get updated post with tags
+    tags = session.query(Tag).join(
+        PostTag, PostTag.tag_id == Tag.id
+    ).filter(
+        PostTag.post_id == post_id,
+        Tag.status == TagStatus.ACTIVE
+    ).all()
+    
+    # Return post with tags
+    return {
+        "id": post.id,
+        "title": post.title,
+        "content": post.content,
+        "author_id": post.author_id,
+        "status": post.status,
+        "created_at": post.created_at,
+        "updated_at": post.updated_at,
+        "likes_count": likes_count,
+        "dislikes_count": dislikes_count,
+        "views_count": post.views_count,
+        "comments_count": comments_count,
+        "tag_ids": [tag.id for tag in tags]
+    }
 
 @router.post("/{post_id}:activatePost", response_model=PostResponse)
 def activate_post(
@@ -275,7 +503,10 @@ def delete_post(
     # 2. Delete all comments
     session.query(Comment).filter(Comment.post_id == post_id).delete(synchronize_session=False)
     
-    # 3. Delete post
+    # 3. Delete post tags
+    session.query(PostTag).filter(PostTag.post_id == post_id).delete(synchronize_session=False)
+    
+    # 4. Delete post
     session.delete(post)
     session.commit()
     return None

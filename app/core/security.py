@@ -9,15 +9,14 @@ from sqlalchemy.orm import Session
 from app.db.database import get_session
 from app.models.user import User
 
-# 用于密码哈希的配置
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# JWT 配置
-SECRET_KEY = "your-secret-key"  # 在生产环境中应该使用环境变量
+# JWT
+SECRET_KEY = "your-secret-key"  # don't use this in production
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 5256000  # just for testing 10 year
 
-# OAuth2 配置
+# OAuth2
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/users/login")
 optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/users/login", auto_error=False)
 

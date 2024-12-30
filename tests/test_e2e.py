@@ -180,25 +180,30 @@ class TestEndToEnd:
         tag_id = response.json()["id"]
         
         # user1 将标签添加到文章
-        response = client.post(
-            f"/api/tags/posts/{post_id}/tags/{tag_id}",
+        client.post(f"/api/posts/{post_id}:modifyPost", headers=headers_user1)
+        response = client.put(
+            f"/api/posts/{post_id}",
+            json={"tag_ids": [tag_id]},
             headers=headers_user1
         )
-        assert response.status_code == 204
+        assert response.status_code == 200
         
         # user2 尝试从文章移除标签（应该失败）
-        response = client.delete(
-            f"/api/tags/posts/{post_id}/tags/{tag_id}",
+        response = client.put(
+            f"/api/posts/{post_id}",
+            json={"tag_ids": []},
             headers=headers_user2
         )
         assert response.status_code == 403
         
         # user1 从文章移除标签
-        response = client.delete(
-            f"/api/tags/posts/{post_id}/tags/{tag_id}",
+        response = client.put(
+            f"/api/posts/{post_id}",
+            json={"tag_ids": []},
             headers=headers_user1
         )
-        assert response.status_code == 204
+        assert response.status_code == 200
+        client.post(f"/api/posts/{post_id}:activatePost", headers=headers_user1)
         
         # 5. 清理
         # user1 删除文章（级联删除评论和回复）
