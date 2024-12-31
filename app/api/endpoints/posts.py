@@ -390,12 +390,12 @@ def activate_post(
             detail="You don't have permission to activate this post"
         )
     
-    # Check current status
-    if post.status == PostStatus.ARCHIVED:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot activate an archived post"
-        )
+    # # Check current status
+    # if post.status == PostStatus.ARCHIVED:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail="Cannot activate an archived post"
+    #     )
     
     post.status = PostStatus.ACTIVE
     post.updated_at = datetime.now(UTC)
