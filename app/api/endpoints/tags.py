@@ -12,7 +12,7 @@ from datetime import datetime, UTC
 
 router = APIRouter()
 
-@router.post("/", response_model=TagResponse, status_code=status.HTTP_201_CREATED, summary="Create a new tag")
+@router.post("", response_model=TagResponse, status_code=status.HTTP_201_CREATED, summary="Create a new tag")
 def create_tag(
     tag: TagCreate,
     current_user: User = Depends(get_current_user),
@@ -39,7 +39,7 @@ def create_tag(
     session.refresh(db_tag)
     return db_tag
 
-@router.get("/", response_model=List[TagResponse], summary="List all tags")
+@router.get("", response_model=List[TagResponse], summary="List all tags")
 def list_tags(
     session: Session = Depends(get_session)
 ):
